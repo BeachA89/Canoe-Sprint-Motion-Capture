@@ -1,0 +1,925 @@
+
+server <- function(input, output) {
+  observeEvent(input$goButton, {############### IMPORTDATA ###############
+    
+    # filePaths <- list.files("data2", full.names = TRUE, pattern = "\\.csv") #~$ is a temporary file if the document is open
+    # dataname <-  str_remove_all(filePaths, ".csv")
+    # dataname <-  str_remove_all(dataname, "data2/")
+    # labels <-  t(data.frame(strsplit(dataname, "_")))
+    
+    
+    #filePaths <<- list.files(input$Files$datapath, full.names = TRUE, pattern = "\\.csv") #~$ is a temporary file if the document is open
+    dataname <- input$Files[['name']]
+    dataname <-  str_remove_all(dataname, ".csv")
+    #dataname <-  str_remove_all(dataname, "data2/")
+    
+    #### Create Labels ####
+    
+    labels <-  t(data.frame(strsplit(dataname, "_")))
+    labels <-  as.data.frame(labels, stringsAsFactors = FALSE)
+    dataname <-  as.data.frame(dataname)
+    
+    rownames(labels) <- NULL
+    
+    #CombinedTS = list()
+    CombinedKinematics_All = list()
+    CombinedPaddle_All = list()
+    CombinedTimeMarkers_All = list()
+    #### Process TS data ####
+    for  (i in 1:length(input$Files$datapath)){
+
+      #for  (i in 1:length(filePaths)){
+        
+      labels1 <-  labels[i,]
+      dataname1 <- dataname[i,]
+      #Trial <- read.csv(input$Files$datapath[[i]], sheet = "DataDump", col_types = "numeric")
+      Trial <- fread(input$Files$datapath[[i]])
+      # Trial <- fread(filePaths[[i]])
+      Paddle <- Trial[,2:7]
+      Kinematics <-  Trial[1:101,c(1,8:383)]
+      names(Kinematics)<-str_replace_all(names(Kinematics), c(" " = "_"))
+      Discrete <-  Trial[1:8,384:428]
+      TimeMarkers <- Trial[1,429:433]
+      LeftKneeStatic <-  as.numeric(Trial[1,434])
+      RightKneeStatic <-  as.numeric(Trial[1,435])
+      
+      Kinematics[,2] <- Kinematics[,2] - LeftKneeStatic
+      Kinematics[,48] <- Kinematics[,48] - RightKneeStatic
+      Kinematics[,94] <- Kinematics[,94] - LeftKneeStatic
+      Kinematics[,140] <- Kinematics[,140] - RightKneeStatic
+      Kinematics[,186] <- Kinematics[,186] - LeftKneeStatic
+      Kinematics[,232] <- Kinematics[,232] - RightKneeStatic
+      Kinematics[,278] <- Kinematics[,278] - LeftKneeStatic
+      Kinematics[,324] <- Kinematics[,324] - RightKneeStatic
+      
+      Kinematics_LS1 <-  Kinematics[,1:47]
+      Kinematics_RS1 <-  Kinematics[,c(1,48:93)]
+      Kinematics_LS2 <-  Kinematics[,c(1,94:139)]
+      Kinematics_RS2 <-  Kinematics[,c(1,140:185)]
+      Kinematics_LS3 <-  Kinematics[,c(1,186:231)]
+      Kinematics_RS3 <-  Kinematics[,c(1,232:277)]
+      Kinematics_LS4 <-  Kinematics[,c(1,278:323)]
+      Kinematics_RS4 <-  Kinematics[,c(1,324:369)]
+      
+      Kinematics_LS1b <-  as.matrix(Kinematics_LS1)
+      Kinematics_LS2b <-  as.matrix(Kinematics_LS2)
+      Kinematics_LS3b <-  as.matrix(Kinematics_LS3)
+      Kinematics_LS4b <-  as.matrix(Kinematics_LS4)
+      
+      Kinematics_RS1b <-  as.matrix(Kinematics_RS1)
+      Kinematics_RS2b <-  as.matrix(Kinematics_RS2)
+      Kinematics_RS3b <-  as.matrix(Kinematics_RS3)
+      Kinematics_RS4b <-  as.matrix(Kinematics_RS4)
+      
+      Kinematic_colnames <- colnames(Kinematics_LS1)
+      X <- list(Kinematics_LS1b, Kinematics_LS2b, Kinematics_LS3b, Kinematics_LS4b)
+      Y <- do.call(cbind, X)
+      Y <- array(Y, dim=c(dim(X[[1]]), length(X)))
+      
+      Kinematics_Left_mean <-  as.data.frame(apply(Y, c(1, 2), mean, na.rm = TRUE))
+      colnames(Kinematics_Left_mean) <-  Kinematic_colnames
+      
+      X <- list(Kinematics_RS1b, Kinematics_RS2b, Kinematics_RS3b, Kinematics_RS4b)
+      Y <- do.call(cbind, X)
+      Y <- array(Y, dim=c(dim(X[[1]]), length(X)))
+      
+      Kinematics_Right_mean <-  as.data.frame(apply(Y, c(1, 2), mean, na.rm = TRUE))
+      colnames(Kinematics_Right_mean) <-  Kinematic_colnames
+
+      Kinematics_Diff <- Kinematics_Left_mean - Kinematics_Right_mean
+      Kinematics_Diff[,"Time"] <- Kinematics_Left_mean[,"Time"]
+      
+      Kinematics_LS1 <- column_to_rownames(Kinematics_LS1, "Time")
+      Kinematics_LS1 <-  data.frame(t(Kinematics_LS1))
+      Kinematics_LS1 <-  rownames_to_column(Kinematics_LS1)
+      Kinematics_LS1 <-  cbind(Trial = "LS1", Kinematics_LS1)
+      Kinematics_RS1 <- column_to_rownames(Kinematics_RS1, "Time")
+      Kinematics_RS1 <-  data.frame(t(Kinematics_RS1))
+      Kinematics_RS1 <-  rownames_to_column(Kinematics_RS1)
+      Kinematics_RS1 <-  cbind(Trial = "RS1", Kinematics_RS1)
+      
+      Kinematics_LS2 <- column_to_rownames(Kinematics_LS2, "Time")
+      Kinematics_LS2 <-  data.frame(t(Kinematics_LS2))
+      Kinematics_LS2 <-  rownames_to_column(Kinematics_LS2)
+      Kinematics_LS2 <-  cbind(Trial = "LS2", Kinematics_LS2)
+      
+      Kinematics_RS2 <- column_to_rownames(Kinematics_RS2, "Time")
+      Kinematics_RS2 <-  data.frame(t(Kinematics_RS2))
+      Kinematics_RS2 <-  rownames_to_column(Kinematics_RS2)
+      Kinematics_RS2 <-  cbind(Trial = "RS2", Kinematics_RS2)
+      
+      Kinematics_LS3 <- column_to_rownames(Kinematics_LS3, "Time")
+      Kinematics_LS3 <-  data.frame(t(Kinematics_LS3))
+      Kinematics_LS3 <-  rownames_to_column(Kinematics_LS3)
+      Kinematics_LS3 <-  cbind(Trial = "LS3", Kinematics_LS3)
+      
+      Kinematics_RS3 <- column_to_rownames(Kinematics_RS3, "Time")
+      Kinematics_RS3 <-  data.frame(t(Kinematics_RS3))
+      Kinematics_RS3 <-  rownames_to_column(Kinematics_RS3)
+      Kinematics_RS3 <-  cbind(Trial = "RS3", Kinematics_RS3)
+      
+      Kinematics_LS4 <- column_to_rownames(Kinematics_LS4, "Time")
+      Kinematics_LS4 <-  data.frame(t(Kinematics_LS4))
+      Kinematics_LS4 <-  rownames_to_column(Kinematics_LS4)
+      Kinematics_LS4 <-  cbind(Trial = "LS4", Kinematics_LS4)
+      
+      Kinematics_RS4 <- column_to_rownames(Kinematics_RS4, "Time")
+      Kinematics_RS4 <-  data.frame(t(Kinematics_RS4))
+      Kinematics_RS4 <-  rownames_to_column(Kinematics_RS4)
+      Kinematics_RS4 <-  cbind(Trial = "RS4", Kinematics_RS4)
+      
+      Kinematics_Left_mean <- column_to_rownames(Kinematics_Left_mean, "Time")
+      Kinematics_Left_mean <-  data.frame(t(Kinematics_Left_mean))
+      Kinematics_Left_mean <-  rownames_to_column(Kinematics_Left_mean)
+      Kinematics_Left_mean <-  cbind(Trial = "LSmean", Kinematics_Left_mean)
+      
+      Kinematics_Right_mean <- column_to_rownames(Kinematics_Right_mean, "Time")
+      Kinematics_Right_mean <-  data.frame(t(Kinematics_Right_mean))
+      Kinematics_Right_mean <-  rownames_to_column(Kinematics_Right_mean)
+      Kinematics_Right_mean <-  cbind(Trial = "RSmean", Kinematics_Right_mean)
+      
+      Kinematics_Diff <- column_to_rownames(Kinematics_Diff, "Time")
+      Kinematics_Diff <-  data.frame(t(Kinematics_Diff))
+      Kinematics_Diff <-  rownames_to_column(Kinematics_Diff)
+      Kinematics_Diff <-  cbind(Trial = "Diff", Kinematics_Diff)
+      
+      
+      Kinematics_All <- bind_rows(Kinematics_LS1, Kinematics_RS1, Kinematics_LS2, Kinematics_RS2, Kinematics_LS3, Kinematics_RS3,
+                                  Kinematics_LS4, Kinematics_RS4, Kinematics_Left_mean, Kinematics_Right_mean, Kinematics_Diff)
+      
+      Kinematics_All <-  data.frame(dataname1, labels1,Kinematics_All)
+      
+      ### PADDLE ###
+      
+      Paddle <-  data.frame(t(Paddle))
+      Paddle <-  rownames_to_column(Paddle)
+      Paddle_All <- data.frame(dataname1, labels1,Paddle)
+      
+      #TIME MARKERS ###
+      TimeMarkers_All <- data.frame(dataname1, labels1,TimeMarkers)
+      
+      CombinedKinematics_All[[i]] = Kinematics_All
+      CombinedPaddle_All[[i]] = Paddle_All
+      CombinedTimeMarkers_All[[i]] = TimeMarkers_All
+      
+    }
+    
+    
+    
+    CombinedKinematics_All <-  rbindlist(CombinedKinematics_All, fill=TRUE)
+    CombinedPaddle_All <-  rbindlist(CombinedPaddle_All, fill=TRUE)
+    CombinedTimeMarkers_All <-  rbindlist(CombinedTimeMarkers_All, fill=TRUE)
+    
+    CombinedPaddle_All <-  CombinedPaddle_All %>% 
+      dplyr::rename(
+        Dataname = dataname1,
+        Name = V1,
+        Speed = V2,
+        Date = V3,
+        Paddle = rowname
+      )
+    
+    CombinedTimeMarkers_All <-  CombinedTimeMarkers_All %>% 
+      dplyr::rename(
+        Dataname = dataname1,
+        Name = V1,
+        Speed = V2,
+        Date = V3,
+      )
+    
+    ColumnsKinematics = c("Dataname", "Name","Speed", "Date", "Trial", "Kinematic", 0:100)
+    
+    colnames(CombinedKinematics_All) <-  ColumnsKinematics
+    
+    
+    
+    
+    #### Process Static data??? ####
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    ############# FILTER DATA #############################
+ 
+    ##### Session 1 Filters ####
+    ### Kinematics ###
+    
+    tab_Filtered_S1_Kin <-  reactive({
+      
+      CombinedKinematics_All %>%
+        filter(Name == input$Name) %>%
+        filter(Date == input$Date) %>%
+        filter(Speed == input$Speed) %>%
+        reshape2::melt(id = c("Dataname", "Name", "Speed", "Date", "Trial", "Kinematic")) %>%
+        mutate(variable = as.numeric(as.character(variable)))
+    })
+    
+    ### Time points ###
+    tab_Filtered_S1_Time <-  reactive({
+      
+      CombinedTimeMarkers_All %>%
+        filter(Name == input$Name) %>%
+        filter(Date == input$Date) %>%
+        filter(Speed == input$Speed) %>%
+        reshape2::melt(id = c("Dataname", "Name", "Speed", "Date"))
+        
+    })
+    
+    tab_Filtered_S1_Pad <-  reactive({
+      
+      Test <- CombinedPaddle_All %>%
+        filter(Name == input$Name) %>%
+        filter(Date == input$Date) %>%
+        filter(Speed == input$Speed)
+        colnames(Test) <- c("Dataname", "Name", "Speed", "Date", "Paddle", 1:(ncol(Test)-5))
+        Test <- Test %>% select(-(1:4)) %>%
+          tibble::column_to_rownames("Paddle")
+        Test <-  as.data.frame(t(Test))
+        
+        (return(Test))
+    })
+    
+
+    output$select_Name <-  renderUI({
+      
+      selectizeInput('Name', 'Select Name', choices = c("select" = "", unique(CombinedKinematics_All$Name)))
+    })
+    
+    output$select_Date <-  renderUI({
+      inputName = as.character(input$Name)
+      choice_Date <- reactive({
+        CombinedKinematics_All %>%
+          filter(Name == inputName) %>%
+          pull(Date) %>%
+          as.character()
+        
+        
+      })
+      
+      
+      selectizeInput('Date', 'Select Date', choices = c("select" = "", choice_Date()))
+    })
+    
+    
+    output$select_Speed <-  renderUI({
+      inputName = as.character(input$Name)
+      inputDate = as.character(input$Date)
+      choice_Speed <- reactive({
+        CombinedKinematics_All %>%
+          filter(Name == inputName) %>%
+          filter(Date == inputDate) %>%
+          pull(Speed) %>%
+          as.character()
+        
+        
+      })
+      
+      
+      selectizeInput('Speed', 'Select Speed', choices = c("select" = "", choice_Speed()))
+      
+    })
+    
+    
+    
+    
+    ### DISCRETE ###
+    
+    # tab_Filtered_S1_ST <-  reactive({
+    #   
+    #   CombinedST_all %>%
+    #     filter(Name == input$Name) %>%
+    #     filter(Distance == input$Distance) %>%
+    #     filter(Date == input$Date) %>%
+    #     filter(Type == input$Type) %>%
+    #     mutate(Session = paste("Session 1", Date, Trial))
+    # })
+    # 
+    # tab_Filtered_S1_ST_LeftAvg <-  reactive({
+    #   CombinedST_all %>%
+    #     filter(Name == input$Name) %>%
+    #     filter(Distance == input$Distance) %>%
+    #     filter(Date == input$Date) %>%
+    #     filter(Type == input$Type) %>%
+    #     mutate(Session = paste("Session 1", Date, Trial))%>%
+    #     filter(Trial %in% c("Left_1", "Left_2", "Left_3")) %>%
+    #     reshape2::melt(id = c("Name", "Distance", "Type","Date", "Trial", "Session")) %>%
+    #     group_by(variable) %>%
+    #     dplyr::summarise(UpperLimit = CI(value, ci=0.95)[1],
+    #                      Average = mean(value), 
+    #                      LowerLimit = CI(value, ci=0.95)[3]) %>%
+    #     mutate(Average = round(Average, digits = 2)) %>%
+    #     mutate(UpperLimit = round(UpperLimit, digits = 2))%>%
+    #     mutate(LowerLimit = round(LowerLimit, digits = 2)) %>%
+    #     mutate(variable = as.character(variable)) 
+    # })
+    # 
+    # 
+    # 
+    # 
+    # tab_Filtered_S1_ST_RightAvg <-  reactive({
+    #   CombinedST_all %>%
+    #     filter(Name == input$Name) %>%
+    #     filter(Distance == input$Distance) %>%
+    #     filter(Date == input$Date) %>%
+    #     filter(Type == input$Type) %>%
+    #     mutate(Session = paste("Session 1", Date, Trial))%>%
+    #     filter(Trial %in% c("Right_1", "Right_2", "Right_3")) %>%
+    #     reshape2::melt(id = c("Name", "Distance", "Type","Date", "Trial", "Session")) %>%
+    #     group_by(variable) %>%
+    #     dplyr::summarise(UpperLimit = CI(value, ci=0.95)[1],
+    #                      Average = mean(value), 
+    #                      LowerLimit = CI(value, ci=0.95)[3]) %>%
+    #     mutate(Average = round(Average, digits = 2)) %>%
+    #     mutate(UpperLimit = round(UpperLimit, digits = 2))%>%
+    #     mutate(LowerLimit = round(LowerLimit, digits = 2)) %>%
+    #     mutate(variable = as.character(variable)) #%>%
+    #   #filter(variable == "Propulsion (% cycle)") %>%
+    #   #print(CombinedST_all)
+    # })
+    
+    ###### Session 2 filters ##### 
+
+    ### Kinematics ###
+    
+    tab_Filtered_S2_Kin <-  reactive({
+      
+      CombinedKinematics_All %>%
+        filter(Name == input$Name2) %>%
+        filter(Date == input$Date2) %>%
+        filter(Speed == input$Speed2) %>%
+        reshape2::melt(id = c("Dataname", "Name", "Speed", "Date", "Trial", "Kinematic")) %>%
+        mutate(variable = as.numeric(as.character(variable)))
+    })
+    
+    ### Time points ###
+    tab_Filtered_S2_Time <-  reactive({
+      
+      CombinedTimeMarkers_All %>%
+        filter(Name == input$Name2) %>%
+        filter(Date == input$Date2) %>%
+        filter(Speed == input$Speed2) %>%
+        reshape2::melt(id = c("Dataname", "Name", "Speed", "Date"))
+      
+    })
+    
+    tab_Filtered_S2_Pad <-  reactive({
+      
+      Test <- CombinedPaddle_All %>%
+        filter(Name == input$Name2) %>%
+        filter(Date == input$Date2) %>%
+        filter(Speed == input$Speed2)
+      colnames(Test) <- c("Dataname", "Name", "Speed", "Date", "Paddle", 1:(ncol(Test)-5))
+      Test <- Test %>% select(-(1:4)) %>%
+        tibble::column_to_rownames("Paddle")
+      Test <-  as.data.frame(t(Test))
+      
+      (return(Test))
+    })
+    
+    
+    output$select_Name2 <-  renderUI({
+      
+      selectizeInput('Name2', 'Select Name 2', choices = c("select" = "", unique(CombinedKinematics_All$Name)))
+    })
+    
+    output$select_Date2 <-  renderUI({
+      inputName2 = as.character(input$Name2)
+      choice_Date2 <- reactive({
+        CombinedKinematics_All %>%
+          filter(Name == inputName2) %>%
+          pull(Date) %>%
+          as.character()
+        
+        
+      })
+      
+      
+      selectizeInput('Date2', 'Select Date 2', choices = c("select" = "", choice_Date2()))
+    })
+    
+    
+    output$select_Speed2 <-  renderUI({
+      inputName2 = as.character(input$Name2)
+      inputDate2 = as.character(input$Date2)
+      choice_Speed2 <- reactive({
+        CombinedKinematics_All %>%
+          filter(Name == inputName2) %>%
+          filter(Date == inputDate2) %>%
+          pull(Speed) %>%
+          as.character()
+        
+        
+      })
+      
+      
+      selectizeInput('Speed2', 'Select Speed 2', choices = c("select" = "", choice_Speed2()))
+      
+    })
+    
+    
+    
+    
+    ### DISCRETE ###
+    
+    # tab_Filtered_S2_ST <-  reactive({
+    #   
+    #   CombinedST_all %>%
+    #     filter(Name == input$Name2) %>%
+    #     filter(Distance == input$Distance2) %>%
+    #     filter(Date == input$Date2) %>%
+    #     filter(Type == input$Type2) %>%
+    #     mutate(Session = paste("Session 2", Date, Trial))
+    # })
+    # 
+    # tab_Filtered_S2_ST_LeftAvg <-  reactive({
+    #   CombinedST_all %>%
+    #     filter(Name == input$Nam2e) %>%
+    #     filter(Distance == input$Distance2) %>%
+    #     filter(Date == input$Date2) %>%
+    #     filter(Type == input$Type2) %>%
+    #     mutate(Session = paste("Session 1", Date, Trial))%>%
+    #     filter(Trial %in% c("Left_1", "Left_2", "Left_3")) %>%
+    #     reshape2::melt(id = c("Name", "Distance", "Type","Date", "Trial", "Session")) %>%
+    #     group_by(variable) %>%
+    #     dplyr::summarise(UpperLimit = CI(value, ci=0.95)[1],
+    #                      Average = mean(value), 
+    #                      LowerLimit = CI(value, ci=0.95)[3]) %>%
+    #     mutate(Average = round(Average, digits = 2)) %>%
+    #     mutate(UpperLimit = round(UpperLimit, digits = 2))%>%
+    #     mutate(LowerLimit = round(LowerLimit, digits = 2)) %>%
+    #     mutate(variable = as.character(variable)) 
+    # })
+    # 
+    # 
+    # 
+    # 
+    # tab_Filtered_S2_ST_RightAvg <-  reactive({
+    #   CombinedST_all %>%
+    #     filter(Name == input$Name2) %>%
+    #     filter(Distance == input$Distance2) %>%
+    #     filter(Date == input$Date2) %>%
+    #     filter(Type == input$Type2) %>%
+    #     mutate(Session = paste("Session 1", Date, Trial))%>%
+    #     filter(Trial %in% c("Right_1", "Right_2", "Right_3")) %>%
+    #     reshape2::melt(id = c("Name", "Distance", "Type","Date", "Trial", "Session")) %>%
+    #     group_by(variable) %>%
+    #     dplyr::summarise(UpperLimit = CI(value, ci=0.95)[1],
+    #                      Average = mean(value), 
+    #                      LowerLimit = CI(value, ci=0.95)[3]) %>%
+    #     mutate(Average = round(Average, digits = 2)) %>%
+    #     mutate(UpperLimit = round(UpperLimit, digits = 2))%>%
+    #     mutate(LowerLimit = round(LowerLimit, digits = 2)) %>%
+    #     mutate(variable = as.character(variable)) #%>%
+    #   #filter(variable == "Propulsion (% cycle)") %>%
+    #   #print(CombinedST_all)
+    # })
+    
+    
+    #########COMBINE DATA FOR TWO SESSION PLOTS ##########
+    
+    plotdata2 <-  reactive({
+      plotdata_S1 <- tab_Filtered_S1_Kin() %>% filter(Trial %in% c("LSmean", "RSmean"))%>%  mutate(Session = paste("Session 1", Trial))
+      plotdata_S2 <- tab_Filtered_S2_Kin() %>% filter(Trial %in% c("LSmean", "RSmean"))%>%  mutate(Session = paste("Session 2", Trial))
+      plotdata2 <-  bind_rows(plotdata_S1, plotdata_S2)
+      
+      return(plotdata2)
+      
+      
+      
+    })
+    
+
+    ############ GGPLOTS #############################
+    #### Definitions ####
+    Line_Colours = c("green4", "green4","green4","green4", "red", "red", "red", "red")
+    Line_Types = c("solid", "solid", "solid", "solid", "solid", "solid", "solid", "solid")
+    Line_Size = c(1, 1, 1, 1, 1, 1, 1, 1, 1)
+    Line_Colours2 = c("green4", "red","green4","red")
+    Line_Types2 = c("solid", "solid", "dashed", "dashed")
+    Line_Size2 = c(1, 1, 0.5, 0.5)
+    
+    # For 2 sessions #
+    Line_Colours_vel = c("green4","red")
+    Line_Types_vel = c("solid","solid")
+    Line_Size_vel = c(1, 1)
+    
+    Line_Colours_vel2 = c("green4", "green","red","pink")
+    Line_Types_vel2 = c("solid", "dashed", "solid", "dashed")
+    Line_Size_vel2 = c(1, 0.5 ,1, 0.5)
+    
+    # ggplot loop #
+    xlabel <- "% stroke"
+    
+    
+    EndPCLeft <- reactive({
+      EndPCLeft <-  tab_Filtered_S1_Time() %>% select(variable, value)
+      EndPCLeft <- EndPCLeft %>% filter(variable == "LeftEndPCavg")
+      return(EndPCLeft)
+    })
+    EndPCRight <- reactive({
+      EndPCRight <-  tab_Filtered_S1_Time() %>% select(variable, value)
+      EndPCRight <- EndPCRight %>% filter(variable == "RightEndPCavg")
+      return(EndPCRight)
+    })
+    CatchPCLeft <- reactive({
+      CatchPCLeft <-  tab_Filtered_S1_Time() %>% select(variable,value)
+      CatchPCLeft <- CatchPCLeft %>% filter(variable == "LeftCatchPCavg")
+      return(CatchPCLeft)
+    })
+    
+
+    CatchPCRight <- reactive({
+      CatchPCRight <-  tab_Filtered_S1_Time() %>% select(variable,value)
+      CatchPCRight <- CatchPCRight %>% filter(variable == "RightCatchPCavg")
+      return(CatchPCRight)
+    })
+    
+    
+    
+    EndPCLeft2 <- reactive({
+      EndPCLeft2 <-  tab_Filtered_S2_Time() %>% select(variable, value)
+      EndPCLeft2 <- EndPCLeft2 %>% filter(variable == "LeftEndPCavg")
+      return(EndPCLeft2)
+    })
+    EndPCRight2 <- reactive({
+      EndPCRight2 <-  tab_Filtered_S2_Time() %>% select(variable, value)
+      EndPCRight2 <- EndPCRight2 %>% filter(variable == "RightEndPCavg")
+      return(EndPCRight2)
+    })
+    CatchPCLeft2 <- reactive({
+      CatchPCLeft2 <-  tab_Filtered_S2_Time() %>% select(variable,value)
+      CatchPCLeft2 <- CatchPCLeft2 %>% filter(variable == "LeftCatchPCavg")
+      return(CatchPCLeft2)
+    })
+    
+    
+    CatchPCRight2 <- reactive({
+      CatchPCRight2 <-  tab_Filtered_S2_Time() %>% select(variable,value)
+      CatchPCRight2 <- CatchPCRight2 %>% filter(variable == "RightCatchPCavg")
+      return(CatchPCRight2)
+    })
+    
+    
+    
+    
+    Benchmark_filtered <-  reactive({
+      Benchmark_filtered <-  Benchmark %>% filter(Distance == input$Distance)
+      return(Benchmark_filtered)
+    })
+    
+    #### GGPLOT FUNCTION ####
+    output$ggplotPaddleBack <-  renderPlot({
+      if (input$Report_Type == "Single Session"){
+        plotdata = tab_Filtered_S1_Pad()
+        #plotdata_Benchmark =  Benchmark_filtered() %>% filter(Kinematic ==kinematic1)
+        ggplot(data = plotdata) + 
+          geom_path(aes(x =Lwristlatdrift, y =  Lwristvertdrift, colour = "Left"))  +
+          geom_path(aes( x =Rwristlatdrift , y = Rwristvertdrift, colour ="Right")) +
+          scale_color_manual(name = "Side", values=Line_Colours_vel) +
+          # scale_linetype_manual(values = Line_Types) + scale_color_manual(values=Line_Colours) + scale_size_manual(values = Line_Size) +
+          # ggtitle(paddle1)+ xlab(xlabel) + theme(plot.title = element_text(hjust = 0.5))#+
+          # geom_vline(xintercept=EndPCLeft, colour = 'green4') + geom_vline(xintercept=EndPCRight, colour = 'red')+
+          # geom_text(aes(x=EndPCLeft, y = yheight1,label="Exit"),hjust=1,vjust=1, size=3, colour = 'green4') +
+          # geom_vline(xintercept=CatchPCLeft, colour = 'green4') + geom_vline(xintercept=CatchPCRight, colour = 'red')+
+          annotate(geom = "label",x=0, y = 0,label="HEAD", size=6)#+ geom_circle(aes(x0 =0,y0 =0,r=50))
+        
+      } else if (input$Report_Type == "Two Sessions"){
+        plotdataPad = tab_Filtered_S1_Pad()
+        plotdataPad2 = tab_Filtered_S2_Pad()
+        #plotdata_Benchmark =  Benchmark_filtered() %>% filter(Kinematic ==kinematic1)
+        ggplot() + 
+          geom_path(data = plotdataPad, aes(x =Lwristlatdrift, y =  Lwristvertdrift, colour = "Left"))  +
+          geom_path(data = plotdataPad, aes( x =Rwristlatdrift , y = Rwristvertdrift, colour ="Right")) +
+          geom_path(data = plotdataPad2, aes(x =Lwristlatdrift, y =  Lwristvertdrift, colour = "Left2"))  +
+          geom_path(data = plotdataPad2, aes( x =Rwristlatdrift , y = Rwristvertdrift, colour ="Right2")) +
+          #scale_color_manual(name = "Side", values=Line_Colours_vel2) +
+          scale_color_manual(values=Line_Colours_vel2)+
+          # ggtitle(paddle1)+ xlab(xlabel) + theme(plot.title = element_text(hjust = 0.5))#+
+          # geom_vline(xintercept=EndPCLeft, colour = 'green4') + geom_vline(xintercept=EndPCRight, colour = 'red')+
+          # geom_text(aes(x=EndPCLeft, y = yheight1,label="Exit"),hjust=1,vjust=1, size=3, colour = 'green4') +
+          # geom_vline(xintercept=CatchPCLeft, colour = 'green4') + geom_vline(xintercept=CatchPCRight, colour = 'red')+
+          annotate(geom = "label",x=0, y = 0,label="HEAD", size=6)#+ geom_circle(aes(x0 =0,y0 =0,r=50))
+        
+      }
+      })
+    
+    output$ggplotPaddleTop <-  renderPlot({
+      if (input$Report_Type == "Single Session"){
+        
+      plotdata = tab_Filtered_S1_Pad()
+      #plotdata_Benchmark =  Benchmark_filtered() %>% filter(Kinematic ==kinematic1)
+      ggplot(data = plotdata) + 
+        geom_path(aes( x =Lwristlatdrift, y =  Lwristantdrift, colour = "Left"))  +
+        geom_path(aes(x =Rwristlatdrift , y = Rwristantdrift, colour ="Right")) + scale_y_reverse() +
+        scale_color_manual(name = "Side", values=Line_Colours_vel) +
+      # scale_linetype_manual(values = Line_Types) + scale_color_manual(values=Line_Colours) + scale_size_manual(values = Line_Size) +
+      # ggtitle(paddle1)+ xlab(xlabel) + theme(plot.title = element_text(hjust = 0.5))#+
+      # geom_vline(xintercept=EndPCLeft, colour = 'green4') + geom_vline(xintercept=EndPCRight, colour = 'red')+
+      # geom_text(aes(x=EndPCLeft, y = yheight1,label="Exit"),hjust=1,vjust=1, size=3, colour = 'green4') +
+      # geom_vline(xintercept=CatchPCLeft, colour = 'green4') + geom_vline(xintercept=CatchPCRight, colour = 'red')+
+        annotate(geom = "label",x=0, y = 0,label="HEAD", size=6)#+ geom_circle(aes(x0 =0,y0 =0,r=50))
+      
+      } else if (input$Report_Type == "Two Sessions"){
+        plotdataPad = tab_Filtered_S1_Pad()
+        plotdataPad2 = tab_Filtered_S2_Pad()
+        #plotdata_Benchmark =  Benchmark_filtered() %>% filter(Kinematic ==kinematic1)
+        ggplot() + 
+          geom_path(data = plotdataPad, aes(x =Lwristlatdrift, y =  Lwristantdrift, colour = "Left"))  +
+          geom_path(data = plotdataPad, aes( x =Rwristlatdrift , y = Rwristantdrift, colour ="Right")) +
+          geom_path(data = plotdataPad2, aes(x =Lwristlatdrift, y =  Lwristantdrift, colour = "Left2"))  +
+          geom_path(data = plotdataPad2, aes( x =Rwristlatdrift , y = Rwristantdrift, colour ="Right2")) +
+          #scale_color_manual(name = "Side", values=Line_Colours_vel2) +
+          scale_linetype_manual(values = Line_Types_vel2) + scale_color_manual(values=Line_Colours_vel2) + scale_size_manual(values = Line_Size_vel2) +
+          # ggtitle(paddle1)+ xlab(xlabel) + theme(plot.title = element_text(hjust = 0.5))#+
+          # geom_vline(xintercept=EndPCLeft, colour = 'green4') + geom_vline(xintercept=EndPCRight, colour = 'red')+
+          # geom_text(aes(x=EndPCLeft, y = yheight1,label="Exit"),hjust=1,vjust=1, size=3, colour = 'green4') +
+          # geom_vline(xintercept=CatchPCLeft, colour = 'green4') + geom_vline(xintercept=CatchPCRight, colour = 'red')+
+          annotate(geom = "label",x=0, y = 0,label="HEAD", size=6)#+ geom_circle(aes(x0 =0,y0 =0,r=50))
+        
+      }
+    })
+    
+    output$ggplotPaddleSide <-  renderPlot({
+      if (input$Report_Type == "Single Session"){
+        
+      plotdata = tab_Filtered_S1_Pad()
+      #plotdata_Benchmark =  Benchmark_filtered() %>% filter(Kinematic ==kinematic1)
+      ggplot(data = plotdata)+ 
+        geom_path(aes(x =Lwristantdrift, y =  Lwristvertdrift, colour = "Left"))  + 
+        geom_path(aes(x =Rwristantdrift , y = Rwristvertdrift, colour = "Right")) +
+        scale_color_manual(name = "Side", values=Line_Colours_vel) +
+      # scale_linetype_manual(values = Line_Types) + scale_color_manual(values=Line_Colours) + scale_size_manual(values = Line_Size) +
+      # ggtitle(paddle1)+ xlab(xlabel) + theme(plot.title = element_text(hjust = 0.5))#+ 
+      # geom_vline(xintercept=EndPCLeft, colour = 'green4') + geom_vline(xintercept=EndPCRight, colour = 'red')+
+      # geom_text(aes(x=EndPCLeft, y = yheight1,label="Exit"),hjust=1,vjust=1, size=3, colour = 'green4') +
+      # geom_vline(xintercept=CatchPCLeft, colour = 'green4') + geom_vline(xintercept=CatchPCRight, colour = 'red')+
+        annotate(geom = "label",x=0, y = 0,label="HEAD", size=6)#+ geom_circle(aes(x0 =0,y0 =0,r=50))
+      
+      } else if (input$Report_Type == "Two Sessions"){
+        plotdataPad = tab_Filtered_S1_Pad()
+        plotdataPad2 = tab_Filtered_S2_Pad()
+        #plotdata_Benchmark =  Benchmark_filtered() %>% filter(Kinematic ==kinematic1)
+        ggplot() + 
+          geom_path(data = plotdataPad, aes(x =Lwristantdrift, y =  Lwristvertdrift, colour = "Left"))  +
+          geom_path(data = plotdataPad, aes( x =Rwristantdrift , y = Rwristvertdrift, colour ="Right")) +
+          geom_path(data = plotdataPad2, aes(x =Lwristantdrift, y =  Lwristvertdrift, colour = "Left2"))  +
+          geom_path(data = plotdataPad2, aes( x =Rwristantdrift , y = Rwristvertdrift, colour ="Right2")) +
+          #scale_color_manual(name = "Side", values=Line_Colours_vel2) +
+          scale_linetype_manual(values = Line_Types_vel2) + scale_color_manual(values=Line_Colours_vel2) + scale_size_manual(values = Line_Size_vel2) +
+          # ggtitle(paddle1)+ xlab(xlabel) + theme(plot.title = element_text(hjust = 0.5))#+
+          # geom_vline(xintercept=EndPCLeft, colour = 'green4') + geom_vline(xintercept=EndPCRight, colour = 'red')+
+          # geom_text(aes(x=EndPCLeft, y = yheight1,label="Exit"),hjust=1,vjust=1, size=3, colour = 'green4') +
+          # geom_vline(xintercept=CatchPCLeft, colour = 'green4') + geom_vline(xintercept=CatchPCRight, colour = 'red')+
+          annotate(geom = "label",x=0, y = 0,label="HEAD", size=6)#+ geom_circle(aes(x0 =0,y0 =0,r=50))
+        
+      }
+    })
+    
+
+
+    # Test <- CombinedPaddle_All %>%
+    #      filter(Name == "Jaime") %>%
+    #      filter(Date == "20122019") %>%
+    #      filter(Speed == "100spm")
+    # colnames(Test) <- c("Dataname", "Name", "Speed", "Date", "Paddle", 1:(ncol(Test)-5))
+    # Test <- Test %>% select(-(1:4)) %>%
+    #   tibble::column_to_rownames("Paddle")
+    # Test <-  as.data.frame(t(Test))
+    # 
+    # 
+    # 
+    # plotdata = Test
+    # #plotdata_Benchmark =  Benchmark_filtered() %>% filter(Kinematic ==kinematic1)
+    # ggplot(data = plotdata) + geom_point(aes(x =Lwristlatdrift, y =  Lwristvertdrift)) + 
+    #   geom_point(aes(x =Rwristlatdrift , y = Rwristvertdrift))
+    # 
+    
+    
+    
+    
+    
+    
+    
+    
+        ggplot_base <- function(kinematic1, yheight1) {
+      renderPlot({
+        if (input$Report_Type == "Single Session"){
+        EndPCLeft <-  data.frame(EndPCLeft())
+        EndPCLeft <-  EndPCLeft[1,2]
+        EndPCRight <-  data.frame(EndPCRight())
+        EndPCRight <-  EndPCRight[1,2]
+        CatchPCLeft <-  data.frame(CatchPCLeft())
+        CatchPCLeft <-  CatchPCLeft[1,2]
+        CatchPCRight <-  data.frame(CatchPCRight())
+        CatchPCRight <-  CatchPCRight[1,2]
+        
+
+        plotdata = tab_Filtered_S1_Kin() %>% filter(Kinematic ==kinematic1) %>% filter(Trial %in% c("LS1", "LS2", "LS3", "LS4", "RS1", "RS2", "RS3", "RS4"))
+        #plotdata_Benchmark =  Benchmark_filtered() %>% filter(Kinematic ==kinematic1)
+        ggplot() + geom_line(data = plotdata, aes(variable, value, colour = Trial, linetype = Trial, size =Trial)) + 
+          scale_linetype_manual(values = Line_Types) + scale_color_manual(values=Line_Colours) + scale_size_manual(values = Line_Size) +
+          xlab(xlabel) +ylab("Angle (degrees)") + theme(legend.title = element_blank(), legend.position="bottom", plot.title = element_text(hjust = 0.5))+ 
+          geom_vline(xintercept=EndPCLeft, colour = 'green4') + geom_vline(xintercept=EndPCRight, colour = 'red')+
+          annotate(geom = "label", x=EndPCLeft, y = yheight1,label="Exit",hjust=1,vjust=1, size=3, colour = 'green4') +
+                    geom_vline(xintercept=CatchPCLeft, colour = 'green4') + geom_vline(xintercept=CatchPCRight, colour = 'red')+
+          annotate(geom = "label", x=CatchPCLeft, y = yheight1,label="Opp Catch",hjust=1,vjust=1, size=3, colour = 'green4')
+        } else if (input$Report_Type == "Two Sessions"){
+          
+          EndPCLeft <-  data.frame(EndPCLeft())
+          EndPCLeft <-  EndPCLeft[1,2]
+          EndPCRight <-  data.frame(EndPCRight())
+          EndPCRight <-  EndPCRight[1,2]
+          CatchPCLeft <-  data.frame(CatchPCLeft())
+          CatchPCLeft <-  CatchPCLeft[1,2]
+          CatchPCRight <-  data.frame(CatchPCRight())
+          CatchPCRight <-  CatchPCRight[1,2]
+          EndPCLeft2 <-  data.frame(EndPCLeft2())
+          EndPCLeft2 <-  EndPCLeft2[1,2]
+          EndPCRight2 <-  data.frame(EndPCRight2())
+          EndPCRight2 <-  EndPCRight2[1,2]
+          CatchPCLeft2 <-  data.frame(CatchPCLeft2())
+          CatchPCLeft2 <-  CatchPCLeft2[1,2]
+          CatchPCRight2 <-  data.frame(CatchPCRight2())
+          CatchPCRight2 <-  CatchPCRight2[1,2]
+          
+          
+          plotdata = plotdata2() %>% filter(Kinematic ==kinematic1)
+          #plotdata_Benchmark =  Benchmark_filtered() %>% filter(Kinematic ==kinematic1)
+          ggplot() + geom_line(data = plotdata, aes(variable, value, colour = Session, linetype = Session, size =Session)) + 
+            scale_linetype_manual(labels = c("Session 1 L", "Session 1 R", "Session 2 L", "Session 2 R"), values = Line_Types2) + scale_color_manual(labels = c("Session 1 L", "Session 1 R", "Session 2 L", "Session 2 R"), values=Line_Colours2) + scale_size_manual(labels = c("Session 1 L", "Session 1 R", "Session 2 L", "Session 2 R"), values = Line_Size2) +
+            xlab(xlabel) +ylab("Angle (degrees)") + theme(legend.title = element_blank(), legend.position="bottom", plot.title = element_text(hjust = 0.5))+ 
+            geom_vline(xintercept=EndPCLeft, colour = 'green4') + geom_vline(xintercept=EndPCRight, colour = 'red')+
+            annotate(geom = "label", x=EndPCLeft, y = yheight1,label="Exit",hjust=1,vjust=1, size=3, colour = 'green4') +
+            geom_vline(xintercept=CatchPCLeft, colour = 'green4') + geom_vline(xintercept=CatchPCRight, colour = 'red')+
+            annotate(geom = "label", x=CatchPCLeft, y = yheight1,label="Opp Catch",hjust=1,vjust=1, size=3, colour = 'green4')+
+            
+            geom_vline(xintercept=EndPCLeft2, colour = 'green4', linetype ="dashed") + geom_vline(xintercept=EndPCRight2, colour = 'red', linetype ="dashed")+
+            geom_vline(xintercept=CatchPCLeft2, colour = 'green4', linetype ="dashed") + geom_vline(xintercept=CatchPCRight2, colour = 'red', linetype ="dashed")
+            
+          
+        }
+      })
+    }
+    
+    ggplot_base_vel <- function(kinematic1, yheight1) {
+      renderPlot({
+        if (input$Report_Type == "Single Session"){
+          
+        EndPCLeft <-  data.frame(EndPCLeft())
+        EndPCLeft <-  EndPCLeft[1,2]
+        EndPCRight <-  data.frame(EndPCRight())
+        EndPCRight <-  EndPCRight[1,2]
+        CatchPCLeft <-  data.frame(CatchPCLeft())
+        CatchPCLeft <-  CatchPCLeft[1,2]
+        CatchPCRight <-  data.frame(CatchPCRight())
+        CatchPCRight <-  CatchPCRight[1,2]
+        
+        
+        plotdata = tab_Filtered_S1_Kin() %>% filter(Kinematic ==kinematic1)%>% filter(Trial %in% c("LSmean", "RSmean"))
+        
+        #plotdata_Benchmark =  Benchmark_filtered() %>% filter(Kinematic ==kinematic1)
+        ggplot() + geom_line(data = plotdata, aes(variable, value, colour = Trial, linetype = Trial, size =Trial)) + 
+          scale_linetype_manual(values = Line_Types_vel, labels = c("Left", "Right")) + scale_color_manual(values=Line_Colours_vel, labels = c("Left", "Right")) + scale_size_manual(values = Line_Size_vel, labels = c("Left", "Right")) +
+          xlab(xlabel)  +ylab("Angular Velocity (deg/s)") + theme(legend.title = element_blank(), legend.position="bottom", plot.title = element_text(hjust = 0.5))+ 
+          geom_vline(xintercept=EndPCLeft, colour = 'green4') + geom_vline(xintercept=EndPCRight, colour = 'red')+
+          annotate(geom = "label", x=EndPCLeft, y = yheight1,label="Exit",hjust=1,vjust=1, size=3, colour = 'green4') +
+          geom_vline(xintercept=CatchPCLeft, colour = 'green4') + geom_vline(xintercept=CatchPCRight, colour = 'red')+
+        annotate(geom = "label", x=CatchPCLeft, y = yheight1,label="Opp Catch",hjust=1,vjust=1, size=3, colour = 'green4')
+        
+        } else if (input$Report_Type == "Two Sessions"){
+          
+          EndPCLeft <-  data.frame(EndPCLeft())
+          EndPCLeft <-  EndPCLeft[1,2]
+          EndPCRight <-  data.frame(EndPCRight())
+          EndPCRight <-  EndPCRight[1,2]
+          CatchPCLeft <-  data.frame(CatchPCLeft())
+          CatchPCLeft <-  CatchPCLeft[1,2]
+          CatchPCRight <-  data.frame(CatchPCRight())
+          CatchPCRight <-  CatchPCRight[1,2]
+          EndPCLeft2 <-  data.frame(EndPCLeft2())
+          EndPCLeft2 <-  EndPCLeft2[1,2]
+          EndPCRight2 <-  data.frame(EndPCRight2())
+          EndPCRight2 <-  EndPCRight2[1,2]
+          CatchPCLeft2 <-  data.frame(CatchPCLeft2())
+          CatchPCLeft2 <-  CatchPCLeft2[1,2]
+          CatchPCRight2 <-  data.frame(CatchPCRight2())
+          CatchPCRight2 <-  CatchPCRight2[1,2]
+          
+          plotdata = plotdata2() %>% filter(Kinematic ==kinematic1)
+          #plotdata_Benchmark =  Benchmark_filtered() %>% filter(Kinematic ==kinematic1)
+          ggplot() + geom_line(data = plotdata, aes(variable, value, colour = Session, linetype = Session, size =Session)) + 
+            scale_linetype_manual(labels = c("Session 1 L", "Session 1 R", "Session 2 L", "Session 2 R"), values = Line_Types2) + scale_color_manual(labels = c("Session 1 L", "Session 1 R", "Session 2 L", "Session 2 R"), values=Line_Colours2) + scale_size_manual(labels = c("Session 1 L", "Session 1 R", "Session 2 L", "Session 2 R"), values = Line_Size2) +
+            xlab(xlabel) +ylab("Angular Velocity (deg/s)") + theme(legend.title = element_blank(), legend.position="bottom", plot.title = element_text(hjust = 0.5))+ 
+            geom_vline(xintercept=EndPCLeft, colour = 'green4') + geom_vline(xintercept=EndPCRight, colour = 'red')+
+            annotate(geom = "label", x=EndPCLeft, y = yheight1,label="Exit",hjust=1,vjust=1, size=3, colour = 'green4') +
+            geom_vline(xintercept=CatchPCLeft, colour = 'green4') + geom_vline(xintercept=CatchPCRight, colour = 'red')+
+            annotate(geom = "label", x=CatchPCLeft, y = yheight1,label="Opp Catch",hjust=1,vjust=1, size=3, colour = 'green4')+
+            
+            geom_vline(xintercept=EndPCLeft2, colour = 'green4', linetype ="dashed") + geom_vline(xintercept=EndPCRight2, colour = 'red', linetype ="dashed")+
+            geom_vline(xintercept=CatchPCLeft2, colour = 'green4', linetype ="dashed") + geom_vline(xintercept=CatchPCRight2, colour = 'red', linetype ="dashed")
+          
+          
+          
+        }
+      })
+    }
+    
+    ggplot_base_diff <- function(kinematic1, yheight1) {
+      renderPlot({
+        if (input$Report_Type == "Single Session"){
+          
+        EndPCLeft <-  data.frame(EndPCLeft())
+        EndPCLeft <-  EndPCLeft[1,2]
+        EndPCRight <-  data.frame(EndPCRight())
+        EndPCRight <-  EndPCRight[1,2]
+        CatchPCLeft <-  data.frame(CatchPCLeft())
+        CatchPCLeft <-  CatchPCLeft[1,2]
+        CatchPCRight <-  data.frame(CatchPCRight())
+        CatchPCRight <-  CatchPCRight[1,2]
+        
+        
+        plotdata = tab_Filtered_S1_Kin() %>% filter(Kinematic ==kinematic1) %>% filter(Trial == "Diff")
+        #plotdata_Benchmark =  Benchmark_filtered() %>% filter(Kinematic ==kinematic1)
+        ggplot() + geom_line(data = plotdata, aes(variable, value, colour = Trial, linetype = Trial, size =Trial)) + 
+          scale_linetype_manual(values = Line_Types) + scale_color_manual(values=Line_Colours) + scale_size_manual(values = Line_Size) +
+          xlab(xlabel)  +ylab("Left (+ve) vs Right (-ve) Difference")+ theme(legend.title = element_blank(), legend.position="bottom", plot.title = element_text(hjust = 0.5))+ 
+          geom_vline(xintercept=EndPCLeft, colour = 'green4') + geom_vline(xintercept=EndPCRight, colour = 'red')+
+          annotate(geom = "label", x=EndPCLeft, y = yheight1,label="Exit",hjust=1,vjust=1, size=3, colour = 'green4') +
+          geom_vline(xintercept=CatchPCLeft, colour = 'green4') + geom_vline(xintercept=CatchPCRight, colour = 'red')+
+        annotate(geom = "label", x=CatchPCLeft, y = yheight1,label="Opp Catch",hjust=1,vjust=1, size=3, colour = 'green4')
+        
+        } else if (input$Report_Type == "Two Sessions"){
+          EndPCLeft <-  data.frame(EndPCLeft())
+          EndPCLeft <-  EndPCLeft[1,2]
+          EndPCRight <-  data.frame(EndPCRight())
+          EndPCRight <-  EndPCRight[1,2]
+          CatchPCLeft <-  data.frame(CatchPCLeft())
+          CatchPCLeft <-  CatchPCLeft[1,2]
+          CatchPCRight <-  data.frame(CatchPCRight())
+          CatchPCRight <-  CatchPCRight[1,2]
+          EndPCLeft2 <-  data.frame(EndPCLeft2())
+          EndPCLeft2 <-  EndPCLeft2[1,2]
+          EndPCRight2 <-  data.frame(EndPCRight2())
+          EndPCRight2 <-  EndPCRight2[1,2]
+          CatchPCLeft2 <-  data.frame(CatchPCLeft2())
+          CatchPCLeft2 <-  CatchPCLeft2[1,2]
+          CatchPCRight2 <-  data.frame(CatchPCRight2())
+          CatchPCRight2 <-  CatchPCRight2[1,2]
+          
+          plotdata = plotdata2() %>% filter(Kinematic ==kinematic1)
+          #plotdata_Benchmark =  Benchmark_filtered() %>% filter(Kinematic ==kinematic1)
+          ggplot() + geom_line(data = plotdata, aes(variable, value, colour = Session, linetype = Session, size =Session)) + 
+            scale_linetype_manual(labels = c("Session 1 L", "Session 1 R", "Session 2 L", "Session 2 R"), values = Line_Types2) + scale_color_manual(labels = c("Session 1 L", "Session 1 R", "Session 2 L", "Session 2 R"), values=Line_Colours2) + scale_size_manual(labels = c("Session 1 L", "Session 1 R", "Session 2 L", "Session 2 R"), values = Line_Size2) +
+            xlab(xlabel) +ylab("Left (+ve) vs Right (-ve) Difference") + theme(legend.title = element_blank(), legend.position="bottom", plot.title = element_text(hjust = 0.5))+ 
+            geom_vline(xintercept=EndPCLeft, colour = 'green4') + geom_vline(xintercept=EndPCRight, colour = 'red')+
+            annotate(geom = "label", x=EndPCLeft, y = yheight1,label="Exit",hjust=1,vjust=1, size=3, colour = 'green4') +
+            geom_vline(xintercept=CatchPCLeft, colour = 'green4') + geom_vline(xintercept=CatchPCRight, colour = 'red')+
+            annotate(geom = "label", x=CatchPCLeft, y = yheight1,label="Opp Catch",hjust=1,vjust=1, size=3, colour = 'green4')+
+            
+            geom_vline(xintercept=EndPCLeft2, colour = 'green4', linetype ="dashed") + geom_vline(xintercept=EndPCRight2, colour = 'red', linetype ="dashed")+
+            geom_vline(xintercept=CatchPCLeft2, colour = 'green4', linetype ="dashed") + geom_vline(xintercept=CatchPCRight2, colour = 'red', linetype ="dashed")
+          
+          
+          
+          
+        }
+      })
+    }
+    
+    
+    
+    #### GGPLOTS ####
+
+    output$ggplotKnee <- ggplot_base("KneeAngle", Inf)
+    output$ggplotThorax <- ggplot_base("LThoraxAngles:Z", Inf)
+    output$ggplotPelvis <- ggplot_base("LPelvisAngles:Z", Inf)
+    output$ggplotPelShoulder <- ggplot_base("PelSholSep", Inf)
+    
+    output$ggplotKneeDiff <- ggplot_base_diff("KneeAngle", Inf)
+    output$ggplotThoraxDiff <- ggplot_base_diff("LThoraxAngles:Z", Inf)
+    output$ggplotPelvisDiff <- ggplot_base_diff("LPelvisAngles:Z", Inf)
+    output$ggplotPelShoulderDiff <- ggplot_base_diff("PelSholSep", Inf)
+    
+    output$ggplotKneeVel <- ggplot_base_vel("KneeXvel", Inf)
+    output$ggplotThoraxVel <- ggplot_base_vel("ThoraxZvel", Inf)
+    output$ggplotPelvisVel <- ggplot_base_vel("PelvisZvel", Inf)
+    output$ggplotPelShoulderVel <- ggplot_base_vel("PelSholSepvel", Inf)   
+    
+    
+    
+    
+    
+    ################# TableOutput ###################
+    
+    
+    
+    #### Table Average Labels ####
+    
+    
+  }) 
+}
